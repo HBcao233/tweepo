@@ -46,7 +46,13 @@ impl<'a> Scanner<'a> {
             } else if self.bytes[self.pos..].starts_with(b"<<") {
                 self.scan_macro();
             } else if self.bytes[self.pos..].starts_with(b"<!--") {
-                self.scan_comment();
+                self.scan_block_comment(4, "-->");
+            } else if self.bytes[self.pos..].starts_with(b"/*") {
+                self.scan_block_comment(2, "*/");
+            } else if self.bytes[self.pos..].starts_with(b"/%") {
+                self.scan_block_comment(2, "%/");
+            } else if self.bytes[self.pos..].starts_with(b"//") {
+                self.scan_inline_comment();
             } else if self.bytes[self.pos] == b'<' {
                 self.scan_html_tag();
             } else {
@@ -60,8 +66,12 @@ impl<'a> Scanner<'a> {
         self.pos >= self.bytes.len()
     }
 
+    fn is_line_start_at(&self, pos: usize) -> bool {
+        pos == 0 || self.bytes[pos - 1] == b'\n'
+    }
+
     fn at_line_start(&self) -> bool {
-        self.pos == 0 || self.bytes[self.pos - 1] == b'\n'
+        self.is_line_start_at(self.pos)
     }
 
     fn move_to(&mut self, pos: usize) {
@@ -269,12 +279,22 @@ impl<'a> Scanner<'a> {
         lower_hay.find(&lower_needle).map(|p| from + p)
     }
 
-    /// HTML Comment: `<!--...-->`
-    fn scan_comment(&mut self) {
+    /// Block comment: `<!--...-->` / `/*...*/` `/%...%/`
+    fn scan_block_comment(&mut self, open_len: usize, close: &str) {
         let start = self.pos;
-        match self.src[start + 4..].find("-->") {
-            Some(p) => self.move_to(start + 4 + p + 3),
+        match self.src[start + open_len..].find(close) {
+            Some(p) => self.move_to(start + open_len + p + close.len()),
             None => self.move_to(self.bytes.len()),
+        }
+    }
+
+    /// Inline comment: `//...`
+    fn scan_inline_comment(&mut self) {
+        let start = self.pos;
+        let line_end = self.find_line_end(start);
+        self.move_to(line_end);
+        if self.pos < self.bytes.len() && self.bytes[self.pos] == b'\n' {
+            self.move_to(self.pos + 1);
         }
     }
 
@@ -349,16 +369,30 @@ impl<'a> Scanner<'a> {
 
         while i < self.bytes.len() {
             // 行首 "::" 视为新的 passage header
-            if (i == 0 || self.bytes[i - 1] == b'\n') && self.bytes[i..].starts_with(b"::") {
+            if self.is_line_start_at(i) && self.bytes[i..].starts_with(b"::") {
                 break;
             }
+
             let b = self.bytes[i];
             // "[[" 中断普通文本
-            if b == b'[' && i + 1 < self.bytes.len() && self.bytes[i + 1] == b'[' {
+            if b == b'[' && self.bytes[i..].starts_with(b"[[") {
                 break;
             }
             // "<" 交给 HTML/宏分支
             if b == b'<' {
+                break;
+            }
+            // "//" 中断普通文本（排除 URL 中的 ://）
+            if b == b'/'
+                && self.bytes[i..].starts_with(b"//")
+                && (i == 0 || self.bytes[i - 1] != b':')
+            {
+                break;
+            }
+            // "/*", "/%" 中断普通文本
+            if b == b'/'
+                && (self.bytes[i..].starts_with(b"/*") || self.bytes[i..].starts_with(b"/%"))
+            {
                 break;
             }
             i += 1;
