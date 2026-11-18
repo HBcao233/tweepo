@@ -430,6 +430,9 @@ fn do_apply_recursively(
                 if !p.is_file() {
                     // println!("{YELLOW}warning{NC}: po file '{}' is not found", po_path.display());
                     missing += 1;
+                    if let Some(o) = out {
+                        fs::copy(&path, &o)?;
+                    }
                 } else {
                     do_apply(&path, &p, out.map(|o| o.with_extension("twee")).as_deref())?;
                     count += 1;
