@@ -1,0 +1,12 @@
+[package]
+name = "tweepo"
+version = "0.1.0"
+authors = ["HBcao <hbcaoqaq@outlook.com>"]
+license = "MIT OR Apache-2.0"
+description = "twee .po i18n support"
+readme = "README.md"
+keywords = []
+categories = []
+edition = "2024"
+
+[dependencies]
