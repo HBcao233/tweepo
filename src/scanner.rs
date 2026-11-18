@@ -91,10 +91,24 @@ impl<'a> Scanner<'a> {
             .unwrap_or(self.bytes.len())
     }
 
+    /// Find `close` from `from`
+    ///
+    /// Used in [`Self::scan_link`].
+    fn find_close(&self, from: usize, close: &[u8]) -> Option<usize> {
+        let mut i = from;
+        while i < self.bytes.len() {
+            if self.bytes[i..].starts_with(close) {
+                return Some(i);
+            }
+            i += 1;
+        }
+        None
+    }
+
     /// Find `close` from `from`, skip content in `"..."` or `'...'`
     ///
-    /// Used in [`Self::scan_link`] and [`Self::scan_macro`].
-    fn find_close(&self, from: usize, close: &[u8]) -> Option<usize> {
+    /// Used in [`Self::scan_macro`].
+    fn find_close_macro(&self, from: usize, close: &[u8]) -> Option<usize> {
         let mut i = from;
         let mut dq = false;
         let mut sq = false;
@@ -164,7 +178,7 @@ impl<'a> Scanner<'a> {
         let inner_start = start + 2;
         let inner = &self.src[inner_start..close];
 
-        if let Some((label_rel, target)) = parse_link(inner) {
+        if let Some((label_rel, target, _setter)) = parse_link(inner) {
             let label_start = inner_start + label_rel.start;
             let label_end = inner_start + label_rel.end;
             let (ts, te) = trim_bounds(self.src, label_start, label_end);
@@ -199,7 +213,7 @@ impl<'a> Scanner<'a> {
         let start = self.pos;
 
         // 找起始标签的结束 `>>`
-        let close = match self.find_close(start + 2, b">>") {
+        let close = match self.find_close_macro(start + 2, b">>") {
             Some(p) => p,
             None => {
                 // 未闭合，'<' 按普通字符处理
@@ -430,18 +444,28 @@ impl<'a> Scanner<'a> {
     }
 }
 
-/// Parse content in `[[...]]`.
-fn parse_link(inner: &str) -> Option<(Range<usize>, String)> {
+/// Parse content in `[[...|...]]` or `[[...|...][]]`.
+fn parse_link(inner: &str) -> Option<(Range<usize>, String, Option<String>)> {
     if let Some(i) = inner.find("->") {
-        return Some((0..i, inner[i + 2..].to_string()));
+        let (target, setter) = split_setter(&inner[i + 2..]);
+        Some((0..i, target, setter))
+    } else if let Some(i) = inner.find("<-") {
+        let (target, setter) = split_setter(&inner[..i]);
+        Some((i + 2..inner.len(), target, setter))
+    } else if let Some(i) = inner.find('|') {
+        let (target, setter) = split_setter(&inner[i + 1..]);
+        Some((0..i, target, setter))
+    } else {
+        None
     }
-    if let Some(i) = inner.find("<-") {
-        return Some((i + 2..inner.len(), inner[..i].to_string()));
+}
+
+fn split_setter(t: &str) -> (String, Option<String>) {
+    if let Some((target, setter)) = t.split_once("][") {
+        (target.to_string(), Some(setter.to_string()))
+    } else {
+        (t.to_string(), None)
     }
-    if let Some(i) = inner.find('|') {
-        return Some((0..i, inner[i + 1..].to_string()));
-    }
-    None
 }
 
 /// trim in `[start, end)`
