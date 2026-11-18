@@ -214,16 +214,17 @@ fn do_gettext(input: &Path, output: &Path) -> io::Result<usize> {
     writeln!(pot, "\"Language-Team: none\\n\"")?;
     writeln!(pot, "\"MIME-Version: 1.0\\n\"")?;
     writeln!(pot, "\"Content-Type: text/plain; charset=UTF-8\\n\"")?;
-    writeln!(pot, "\"Content-Transfer-Encoding: 8bit\\n\"\n")?;
+    writeln!(pot, "\"Content-Transfer-Encoding: 8bit\\n\"")?;
 
-    for seg in &segments {
+    for seg in segments.iter() {
+        writeln!(pot)?;
         if let Some(target) = &seg.link_target {
             writeln!(pot, "#. Link target: {}", target)?;
         }
         writeln!(pot, "#: {}:{}", input.display(), seg.line)?;
         writeln!(pot, "msgctxt \"{}\"", po_escape(&seg.context))?;
         writeln!(pot, "msgid \"{}\"", po_escape(&seg.source))?;
-        writeln!(pot, "msgstr \"\"\n")?;
+        writeln!(pot, "msgstr \"\"")?;
     }
 
     pot.flush()?;
