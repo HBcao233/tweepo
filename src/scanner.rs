@@ -223,6 +223,47 @@ impl<'a> Scanner<'a> {
         self.move_to(close + 2);
     }
 
+    /// Find first macro arg in `[header_start, header_end)`
+    fn find_macro_first_arg(
+        &self,
+        header_start: usize,
+        header_end: usize,
+    ) -> Option<(usize, usize)> {
+        let mut i = header_start;
+
+        // 跳过宏名
+        while i < header_end && (self.bytes[i].is_ascii_alphanumeric() || self.bytes[i] == b'_') {
+            i += 1;
+        }
+
+        if self.bytes[i] == b' ' {
+            i += 1;
+        }
+
+        let q_start = i;
+        let mut quote = None;
+        while i < header_end {
+            let b = self.bytes[i];
+            if quote.is_none() && b == b' ' {
+                break;
+            }
+            if [b'"', b'\'', b'`'].contains(&b) {
+                if quote.is_some() {
+                    i += 1;
+                    break;
+                }
+                quote = Some(b);
+            }
+            i += 1;
+        }
+
+        if q_start != i {
+            Some((q_start, i))
+        } else {
+            None
+        }
+    }
+
     /// Macros: `<<...>>`
     fn scan_macro(&mut self) {
         let start = self.pos;
@@ -239,7 +280,7 @@ impl<'a> Scanner<'a> {
 
         let header = self.src[start + 2..close].trim_start();
 
-        // 闭合标签 `<</link>>`、`<</if>>` 等：直接跳过
+        // 闭合标签, 直接跳过
         if header.starts_with('/') {
             self.move_to(close + 2);
             return;
@@ -257,10 +298,9 @@ impl<'a> Scanner<'a> {
             return;
         }
 
-        // 块级宏：link / button 提取第一个字符串参数作为可翻译 label
+        // 块级宏：link / button 提取第一个参数作为可翻译 label
         if (name.eq_ignore_ascii_case("link") || name.eq_ignore_ascii_case("button"))
-            && let Some((label_start, label_end)) =
-                parse_first_string_arg(self.src, start + 2, close)
+            && let Some((label_start, label_end)) = self.find_macro_first_arg(start + 2, close)
         {
             let (ts, te) = trim_bounds(self.src, label_start, label_end);
             if ts < te {
@@ -508,40 +548,4 @@ fn parse_macro_name(header: &str) -> String {
         i += 1;
     }
     header[..i].to_string()
-}
-
-/// Find first string literal in `[header_start, header_end)`
-///
-/// Returns byte range in `"..."`
-fn parse_first_string_arg(
-    src: &str,
-    header_start: usize,
-    header_end: usize,
-) -> Option<(usize, usize)> {
-    let bytes = src.as_bytes();
-    let mut i = header_start;
-
-    // 跳过宏名
-    while i < header_end && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
-        i += 1;
-    }
-
-    // 找第一个双引号
-    while i < header_end && bytes[i] != b'"' {
-        i += 1;
-    }
-    if i >= header_end {
-        return None;
-    }
-
-    let q_start = i + 1;
-    let mut j = q_start;
-    while j < header_end {
-        match bytes[j] {
-            b'\\' if j + 1 < header_end => j += 2,
-            b'"' => return Some((q_start, j)),
-            _ => j += 1,
-        }
-    }
-    None
 }
