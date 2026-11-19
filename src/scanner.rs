@@ -43,6 +43,8 @@ impl<'a> Scanner<'a> {
                 self.scan_header();
             } else if self.bytes[self.pos..].starts_with(b"[[") {
                 self.scan_link();
+            } else if self.inline_macro_end(self.pos).is_some() {
+                self.scan_plain_text();
             } else if self.bytes[self.pos..].starts_with(b"<<") {
                 self.scan_macro();
             } else if self.bytes[self.pos..].starts_with(b"<!--") {
@@ -144,6 +146,19 @@ impl<'a> Scanner<'a> {
             i += 1;
         }
         None
+    }
+
+    /// 若 `pos` 处是行内输出宏（`<<=`、`<<-`、`<<print `），返回宏结束位置（`>>` 之后）
+    fn inline_macro_end(&self, pos: usize) -> Option<usize> {
+        let rest = &self.bytes[pos..];
+        let body_start = if rest.starts_with(b"<<=") || rest.starts_with(b"<<-") {
+            pos + 3
+        } else if self.starts_with_ignore_case(pos, "<<print") {
+            pos + 7
+        } else {
+            return None;
+        };
+        self.find_close_macro(body_start, b">>")
     }
 
     /// Passage header: `:: Name`
@@ -394,6 +409,11 @@ impl<'a> Scanner<'a> {
             }
             // "<" 交给 HTML/宏分支
             if b == b'<' {
+                // 行内输出宏 `<<=...>>` 视为正文中的占位符，不中断
+                if let Some(end) = self.inline_macro_end(i) {
+                    i = end;
+                    continue;
+                }
                 break;
             }
             // "//" 中断普通文本（排除 URL 中的 ://）
