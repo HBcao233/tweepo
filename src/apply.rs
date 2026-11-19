@@ -72,15 +72,26 @@ pub(crate) fn plan_apply<'a>(
 
         let mut ok = true;
 
-        if let Err(e) = validate_tokens(seg, &entry.msgstr) {
-            result.errors += 1;
-            result.diagnostics.push(Diagnostic {
-                error: true,
-                message: e,
-                line: seg.line,
-                context: &seg.context,
-            });
-            ok = false;
+        match validate_tokens(seg, &entry.msgstr) {
+            Ok(None) => {}
+            Ok(Some(warning)) => {
+                result.diagnostics.push(Diagnostic {
+                    error: false,
+                    message: warning,
+                    line: seg.line,
+                    context: &seg.context,
+                });
+            }
+            Err(e) => {
+                result.errors += 1;
+                result.diagnostics.push(Diagnostic {
+                    error: true,
+                    message: e,
+                    line: seg.line,
+                    context: &seg.context,
+                });
+                ok = false;
+            }
         }
         if let SegmentKind::TranslatableLinkLabel = seg.kind
             && let Err(e) = validate_link_label(&entry.msgstr)
@@ -120,7 +131,7 @@ pub(crate) fn plan_apply<'a>(
 }
 
 /// Validate `$identifier` / `_identifier` not broken
-fn validate_tokens(seg: &Segment, msgstr: &str) -> Result<(), String> {
+fn validate_tokens(seg: &Segment, msgstr: &str) -> Result<Option<String>, String> {
     let translated = extract_tokens(msgstr);
     let source = &seg.protected_tokens;
 
@@ -137,17 +148,18 @@ fn validate_tokens(seg: &Segment, msgstr: &str) -> Result<(), String> {
                 .join(", ")
         ));
     }
-    if !extra.is_empty() {
-        return Err(format!(
+    if extra.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(format!(
             "unexpected protected token(s) in translation: {}",
             extra
                 .iter()
                 .map(|s| s.as_str())
                 .collect::<Vec<_>>()
                 .join(", ")
-        ));
+        )))
     }
-    Ok(())
 }
 
 /// Validate link label not contains `]]`、`->`、`<-`、`|` or \n
