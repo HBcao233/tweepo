@@ -10,3 +10,4 @@ categories = []
 edition = "2024"
 
 [dependencies]
+shell-escape = "0.1.5"

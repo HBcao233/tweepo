@@ -10,7 +10,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use crate::apply::plan_apply;
+use crate::apply::{Note, plan_apply};
 use crate::po::parse_po;
 use crate::scanner::Scanner;
 use crate::utils::po_escape;
@@ -366,18 +366,29 @@ fn do_apply(source_path: &Path, po_path: &Path, output: Option<&Path>) -> io::Re
     let result = plan_apply(&source, &segments, &catalog, output.is_none());
 
     for d in &result.diagnostics {
+        let note = match d.note {
+            Note::Null => String::new(),
+            Note::UnknownMsgId => format!(
+                "\n  {BLUE}note{NC}: re-gettext and run `msgmerge {} <pot_file> --update` to update your po",
+                shell_escape::escape(po_path.to_string_lossy())
+            ),
+            Note::Fuzzy => format!("\n  {BLUE}note{NC}: check the translation and then remove `#, fuzzy` flag"),
+        };
         let msg = format!(
-            "{}\n  {BLUE}-->{NC} {}:{} [{}]",
+            "{}\n  {BLUE}-->{NC} {}:{} [{}]{}",
             d.message,
             source_path.display(),
             d.line,
-            d.context
+            d.context,
+            note,
         );
+
         if d.error {
             eprintln!("{RED}error{NC}: {}", msg);
         } else {
             eprintln!("{YELLOW}warning{NC}: {}", msg);
         }
+        eprintln!();
     }
 
     if let Some(o) = output {

@@ -8,6 +8,13 @@ pub struct Diagnostic<'a> {
     pub message: String,
     pub line: u32,
     pub context: &'a str,
+    pub note: Note,
+}
+
+pub enum Note {
+    Null,
+    UnknownMsgId,
+    Fuzzy,
 }
 
 pub struct ApplyResult<'a> {
@@ -46,9 +53,10 @@ pub(crate) fn plan_apply<'a>(
                 result.missing += 1;
                 result.diagnostics.push(Diagnostic {
                     error: false,
-                    message: format!("no translation for msgid {}", describe_msgid(&seg.source)),
+                    message: format!("unknown msgid {}", describe_msgid(&seg.source)),
                     line: seg.line,
                     context: &seg.context,
+                    note: Note::UnknownMsgId,
                 });
                 continue;
             }
@@ -61,6 +69,7 @@ pub(crate) fn plan_apply<'a>(
                 message: "fuzzy entry skipped".to_string(),
                 line: seg.line,
                 context: &seg.context,
+                note: Note::Fuzzy,
             });
             continue;
         }
@@ -87,6 +96,7 @@ pub(crate) fn plan_apply<'a>(
                     message: warning,
                     line: seg.line,
                     context: &seg.context,
+                    note: Note::Null,
                 });
             }
             Err(e) => {
@@ -96,6 +106,7 @@ pub(crate) fn plan_apply<'a>(
                     message: e,
                     line: seg.line,
                     context: &seg.context,
+                    note: Note::Null,
                 });
                 ok = false;
             }
@@ -109,6 +120,7 @@ pub(crate) fn plan_apply<'a>(
                 message: e,
                 line: seg.line,
                 context: &seg.context,
+                note: Note::Null,
             });
             ok = false;
         }
