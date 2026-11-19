@@ -72,7 +72,14 @@ pub(crate) fn plan_apply<'a>(
 
         let mut ok = true;
 
-        match validate_tokens(seg, &entry.msgstr) {
+        match validate_tokens(
+            seg,
+            &entry.msgstr,
+            entry
+                .comments
+                .iter()
+                .any(|f| f.eq_ignore_ascii_case("ignore: unexpected-token")),
+        ) {
             Ok(None) => {}
             Ok(Some(warning)) => {
                 result.diagnostics.push(Diagnostic {
@@ -131,7 +138,11 @@ pub(crate) fn plan_apply<'a>(
 }
 
 /// Validate `$identifier` / `_identifier` not broken
-fn validate_tokens(seg: &Segment, msgstr: &str) -> Result<Option<String>, String> {
+fn validate_tokens(
+    seg: &Segment,
+    msgstr: &str,
+    ignore_unexpected: bool,
+) -> Result<Option<String>, String> {
     let translated = extract_tokens(msgstr);
     let source = &seg.protected_tokens;
 
@@ -148,7 +159,7 @@ fn validate_tokens(seg: &Segment, msgstr: &str) -> Result<Option<String>, String
                 .join(", ")
         ));
     }
-    if extra.is_empty() {
+    if extra.is_empty() || ignore_unexpected {
         Ok(None)
     } else {
         Ok(Some(format!(

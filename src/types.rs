@@ -26,6 +26,7 @@ pub struct CatalogEntry {
     pub msgid: String,
     pub msgstr: String,
     pub flags: Vec<String>,
+    pub comments: Vec<String>,
 }
 
 pub type Catalog = HashMap<(String, String), CatalogEntry>;

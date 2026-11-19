@@ -10,6 +10,7 @@ pub fn parse_po(text: &str) -> Catalog {
     let mut field = Field::None;
     let mut msgid_started = false;
     let mut pending_flags: Vec<String> = Vec::new();
+    let mut pending_comments: Vec<String> = Vec::new();
 
     for raw_line in text.lines() {
         let line = raw_line.trim_end_matches('\r');
@@ -34,6 +35,9 @@ pub fn parse_po(text: &str) -> Catalog {
                     }
                 }
             }
+            if !rest.starts_with(":") && !rest.starts_with(".") {
+                pending_comments.push(rest.trim().to_string());
+            }
             continue;
         }
 
@@ -45,6 +49,7 @@ pub fn parse_po(text: &str) -> Catalog {
                 msgid: String::new(),
                 msgstr: String::new(),
                 flags: std::mem::take(&mut pending_flags),
+                comments: std::mem::take(&mut pending_comments),
             });
             field = Field::Context;
             msgid_started = false;
@@ -60,6 +65,7 @@ pub fn parse_po(text: &str) -> Catalog {
                     msgid: String::new(),
                     msgstr: String::new(),
                     flags: std::mem::take(&mut pending_flags),
+                    comments: std::mem::take(&mut pending_comments),
                 });
             }
             if let Some(entry) = current.as_mut() {
