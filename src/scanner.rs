@@ -313,7 +313,7 @@ impl<'a> Scanner<'a> {
                 let line = self.line_at(ts);
 
                 self.segments.push(Segment {
-                    kind: SegmentKind::TranslatableLinkLabel,
+                    kind: SegmentKind::TranslatableMacroLinkLabel,
                     span: ts..te,
                     source,
                     context,

@@ -5,6 +5,7 @@ use std::ops::Range;
 pub enum SegmentKind {
     TranslatableBody,
     TranslatableLinkLabel,
+    TranslatableMacroLinkLabel,
 }
 
 #[allow(dead_code)]
